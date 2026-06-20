@@ -17,8 +17,13 @@ def get_induced_energy(geometry, fragments, gamma=146.44, p=6, sigma=1.0061, R_0
         sigma: float | default = 1.0061 kJ/mol
         R_0: float | default = 3.8164 Angstrom
     Returns:
-        induced_force: int | induced force
+        induced_energy: float | induced energy
     """
+    # check for fragment number
+    if len(fragments) != 2:
+        print("Error! Must be a two-fragment system!")
+        return 0
+    
     # make the alpha parameter
     alpha = gamma/(R_0*(2**(-1/p)-(1+(1+gamma/sigma)**(0.5))**(-1/p)))
     
@@ -69,7 +74,8 @@ def get_frag_radii(fragment):
     'F': 1.47,
     'P': 1.80,
     'S': 1.80,
-    'Cl': 1.75
+    'Cl': 1.75,
+    'Br': 1.85
     }
     radii_pre = [VDW_RADII[atom.GetSymbol()] for atom in fragment.GetAtoms()]
     radii = np.array(radii_pre)
@@ -170,6 +176,29 @@ H          0.44310       -0.84060        1.33230
         f.write(methanol_xyz_content)
 
 # TEST
+def test_get_fragments_basic_sn2(save_path):
+    """Testing get_fragments function on methanol molecule.
+    Result: passed
+    """
+    input_geom = easyxtb.Geometry.load_file(save_path / "molecules" / "basic_sn2.xyz")
+    geom = easyxtb.calculate.optimize(input_geom, level="normal")
+    expected = 2
+    frags = get_fragments(geom) # should return a single fragment
+    if len(frags) == expected:
+        smiles_1 = make_smiles(frags[0])
+        smiles_2 = make_smiles(frags[1])
+        if  smiles_1 == "CCBr":
+            if  smiles_2 == "N":
+                return True
+        else:
+            print(f"Expected frag: CCBr and N")
+            print(f"Returned: {smiles_1} and {smiles_2}")
+            return False
+    print(f"Expected Length: {2}")
+    print(f"Returned Length: {len(frags)}")
+    return False
+
+# TEST
 def test_get_fragments_methanol(save_path):
     """Testing get_fragments function on methanol molecule.
     Result: passed
@@ -178,7 +207,7 @@ def test_get_fragments_methanol(save_path):
     geom = easyxtb.calculate.optimize(input_geom, level="normal")
     expected = 1
     frags = get_fragments(geom) # should return a single fragment
-    if len(frags) == 1:
+    if len(frags) == expected:
         smiles = make_smiles(frags[0])
         if  smiles == "CO":
             return True
@@ -239,14 +268,30 @@ def test_get_frag_radii_methanol(save_path):
     expected = np.array([1.7, 1.52, 1.2, 1.2, 1.2, 1.2])
     return np.array_equal(get_frag_radii(mol), expected)
 
+# TEST
+def test_get_induced_energy_basic_sn2(save_path):
+    """Testing get_induced_energy function on basic_sn2 molecules.
+    Result: passed
+    """
+    input_geom = easyxtb.Geometry.load_file(save_path / "molecules" / "basic_sn2.xyz")
+    geom = easyxtb.calculate.optimize(input_geom, level="normal")
+    frags = get_fragments(geom) # should return a single fragment
+
+    # test
+    expected = 1568.8144040556358
+    result = get_induced_energy(geom, frags)
+    return (result == expected)
+
 if __name__ == "__main__":
     # establish directory and save paths
     script_dir = Path(__file__).resolve().parent
-    save_path = script_dir.parent / "results"
+    save_path = script_dir.parent / "experimental"
     create_test_molecule(save_path)
 
     # Tests
     print("Test Results:")
+    print(f"   test_get_induced_energy_basic_sn2: {test_get_induced_energy_basic_sn2(save_path)}")
+    print(f"   test_get_fragments_basic_sn2: {test_get_fragments_basic_sn2(save_path)}")
     print(f"   test_get_frag_radii_methanol: {test_get_frag_radii_methanol(save_path)}")
     print(f"   test_get_frag_positions_methanol: {test_get_frag_positions_methanol(save_path)}")
     print(f"   test_smiles_methanol: {test_smiles_methanol(save_path)}")
